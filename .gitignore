@@ -34,3 +34,4 @@
 # binary files
 client
 server
+*.sh
