@@ -177,7 +177,7 @@ void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds,
      for(auto const& names : clients)
      {
         msg += names.second->name + ",";
-
+        std::cout << names.first << " " << names.second->name << std::endl;
      }
      // Reducing the msg length by 1 loses the excess "," - which
      // granted is totally cheating.
@@ -221,25 +221,76 @@ void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds,
      
 }
 
+int connectToBotServer(int &sock, char* argv[]){
+    std::cout << "In function" << std::endl;
+    struct addrinfo hints, *svr;
+    struct sockaddr_in serv_addr;
+    int set = 1;                              // Toggle for setsockopt
+
+    std::cout << "0: " << argv[0] << std::endl;
+    std::cout << "1: " << argv[1] << std::endl;
+    std::cout << "2: " << argv[2] << std::endl;
+    std::cout << "3: " << argv[3] << std::endl;
+
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+      
+    memset(&hints, 0, sizeof(hints));
+
+    if(getaddrinfo(argv[2], argv[3], &hints, &svr) != 0) {
+        perror("getaddrinfo failed");
+        exit(0);
+    }
+
+   struct hostent *server;
+   server = gethostbyname(argv[2]);
+
+   bzero((char *) &serv_addr, sizeof(serv_addr));
+   serv_addr.sin_family = AF_INET;
+   bcopy((char *)server->h_addr,
+      (char *)&serv_addr.sin_addr.s_addr,
+      server->h_length);
+
+   serv_addr.sin_port = htons(atoi(argv[3]));
+
+   sock = socket(AF_INET, SOCK_STREAM, 0);
+
+    if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &set, sizeof(set)) < 0)
+   {
+       printf("Failed to set SO_REUSEADDR for port %s\n", argv[3]);
+       perror("setsockopt failed: ");
+   }
+
+   if(connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr) )< 0)
+   {
+       printf("Failed to open socket to server: %s\n", argv[2]);
+       perror("Connect failed: ");
+       exit(0);
+   }
+
+    return sock;
+}
+
 int main(int argc, char* argv[])
 {
     bool finished;
     int listenSock;                 // Socket for connections to server
     int clientSock;                 // Socket of connecting client
+    int serverConnectedSocket;      // Socket connecting to bot server
     fd_set openSockets;             // Current open sockets 
     fd_set readSockets;             // Socket list for select()        
     fd_set exceptSockets;           // Exception socket list
     int maxfds;                     // Passed to select() as max fd in set
     struct sockaddr_in client;
+    struct sockaddr_in serv_addr;
     socklen_t clientLen;
     char buffer[1025];              // buffer for reading from clients
 
-    if(argc != 2)
+    if(argc != 2 && argc != 4)
     {
-        printf("Usage: chat_server <ip port>\n");
+        printf("Usage1: chat_server <ip port>\nUsage2: chat_server <ip_port> <ip_to_connect_to> <port_to_connect_to>");
         exit(0);
     }
-
     // Setup socket for server to listen to
 
     listenSock = open_socket(atoi(argv[1])); 
@@ -256,6 +307,13 @@ int main(int argc, char* argv[])
         FD_ZERO(&openSockets);
         FD_SET(listenSock, &openSockets);
         maxfds = listenSock;
+        if ( argc == 4) {
+            std::cout << "Connecting to another server.." << std::endl;
+
+            serverConnectedSocket = connectToBotServer(serverConnectedSocket, argv);
+            
+            send(serverConnectedSocket, "TEST", strlen("TSET"),0);
+        }
     }
 
     finished = false;
