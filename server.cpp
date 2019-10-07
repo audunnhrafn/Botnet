@@ -221,17 +221,30 @@ void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds,
      
 }
 
+const char* getConnectionString(char* argv){
+    std::cout << "ARGV[4]: " << argv << std::endl;
+    std::string con = "CONNECT ";
+    size_t len = strlen(argv);
+    char *connectName = (char*)malloc(len+1);
+    strcpy(connectName, argv);
+    std::string c = con + connectName;
+    const char* connectionString = c.c_str();
+    std::cout << "con: " << connectionString << std::endl; 
+    return connectionString;
+}
+
 int connectToBotServer(int &sock, char* argv[]){
     std::cout << "In function" << std::endl;
     struct addrinfo hints, *svr;
     struct sockaddr_in serv_addr;
     int set = 1;                              // Toggle for setsockopt
 
-    std::cout << "0: " << argv[0] << std::endl;
-    std::cout << "1: " << argv[1] << std::endl;
-    std::cout << "2: " << argv[2] << std::endl;
-    std::cout << "3: " << argv[3] << std::endl;
-
+    std::cout << "ARGV[0]: " << argv[0] << std::endl;
+    std::cout << "ARGV[1]: " << argv[1] << std::endl;
+    std::cout << "ARGV[2]: " << argv[2] << std::endl;
+    std::cout << "ARGV[3]: " << argv[3] << std::endl;
+    std::cout << "ARGV[4]: " << argv[4] << std::endl;
+ 
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
       
@@ -268,6 +281,18 @@ int connectToBotServer(int &sock, char* argv[]){
        exit(0);
    }
 
+    std::string con = "CONNECT ";
+    size_t len = strlen(argv[4]);
+    char *connectName = (char*)malloc(len+1);
+    strcpy(connectName, argv[4]);
+    std::string c = con + connectName;
+    const char* connectionString = c.c_str();
+
+    if(send(sock, connectionString, strlen(connectionString), 0) == -1) {
+        perror("send(), to server failed");
+        return -1;
+    }
+
     return sock;
 }
 
@@ -281,12 +306,13 @@ int main(int argc, char* argv[])
     fd_set readSockets;             // Socket list for select()        
     fd_set exceptSockets;           // Exception socket list
     int maxfds;                     // Passed to select() as max fd in set
+    char *serverName;               // Name of this server
     struct sockaddr_in client;
     struct sockaddr_in serv_addr;
     socklen_t clientLen;
     char buffer[1025];              // buffer for reading from clients
 
-    if(argc != 2 && argc != 4)
+    if(argc != 2 && argc != 5)
     {
         printf("Usage1: chat_server <ip port>\nUsage2: chat_server <ip_port> <ip_to_connect_to> <port_to_connect_to>");
         exit(0);
@@ -307,12 +333,11 @@ int main(int argc, char* argv[])
         FD_ZERO(&openSockets);
         FD_SET(listenSock, &openSockets);
         maxfds = listenSock;
-        if ( argc == 4) {
+        if ( argc == 5) {
+            
             std::cout << "Connecting to another server.." << std::endl;
 
             serverConnectedSocket = connectToBotServer(serverConnectedSocket, argv);
-            
-            send(serverConnectedSocket, "TEST", strlen("TSET"),0);
         }
     }
 
