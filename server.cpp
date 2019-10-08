@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <map>
 #include <vector>
+#include <typeinfo>
 
 #include <iostream>
 #include <sstream>
@@ -45,7 +46,11 @@ class Client
     int sock;              // socket of client connection
     std::string name;           // Limit length of name of client's user
 
-    Client(int socket) : sock(socket){} 
+    Client(int socket) : sock(socket){}
+    Client(int socket, std::string name) {
+        this->sock = socket;
+        this->name = name;
+    }
 
     ~Client(){}            // Virtual destructor defined for base class
 };
@@ -58,6 +63,7 @@ class Client
 // (indexed on socket no.) sacrificing memory for speed.
 
 std::map<int, Client*> clients; // Lookup table for per Client information
+std::map<int, Client*> servers; // Lookup table for per Server information
 
 // Open socket for specified port.
 //
@@ -118,6 +124,8 @@ int open_socket(int portno)
    }
 }
 
+char * serverName = "V_Group_69";
+
 // Close a client's connection, remove it from the client list, and
 // tidy up select sockets afterwards.
 
@@ -143,157 +151,151 @@ void closeClient(int clientSocket, fd_set *openSockets, int *maxfds)
      FD_CLR(clientSocket, openSockets);
 }
 
-// Process command from client on the server
+// Connect a new server and add it to the lookup servers
 
-void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds, 
-                  char *buffer) 
-{
-  std::vector<std::string> tokens;
-  std::string token;
-
-  // Split command from client into tokens for parsing
-  std::stringstream stream(buffer);
-
-  while(stream >> token)
-      tokens.push_back(token);
-
-  if((tokens[0].compare("CONNECT") == 0) && (tokens.size() == 2))
-  {
-     clients[clientSocket]->name = tokens[1];
-  }
-  else if(tokens[0].compare("LEAVE") == 0)
-  {
-      // Close the socket, and leave the socket handling
-      // code to deal with tidying up clients etc. when
-      // select() detects the OS has torn down the connection.
- 
-      closeClient(clientSocket, openSockets, maxfds);
-  }
-  else if(tokens[0].compare("WHO") == 0)
-  {
-     std::cout << "Who is logged on" << std::endl;
-     std::string msg;
-
-     for(auto const& names : clients)
-     {
-        msg += names.second->name + ",";
-        std::cout << names.first << " " << names.second->name << std::endl;
-     }
-     // Reducing the msg length by 1 loses the excess "," - which
-     // granted is totally cheating.
-     send(clientSocket, msg.c_str(), msg.length()-1, 0);
-
-  }
-  // This is slightly fragile, since it's relying on the order
-  // of evaluation of the if statement.
-  else if((tokens[0].compare("MSG") == 0) && (tokens[1].compare("ALL") == 0))
-  {
-      std::string msg;
-      for(auto i = tokens.begin()+2;i != tokens.end();i++) 
-      {
-          msg += *i + " ";
-      }
-
-      for(auto const& pair : clients)
-      {
-          send(pair.second->sock, msg.c_str(), msg.length(),0);
-      }
-  }
-  else if(tokens[0].compare("MSG") == 0)
-  {
-      for(auto const& pair : clients)
-      {
-          if(pair.second->name.compare(tokens[1]) == 0)
-          {
-              std::string msg;
-              for(auto i = tokens.begin()+2;i != tokens.end();i++) 
-              {
-                  msg += *i + " ";
-              }
-              send(pair.second->sock, msg.c_str(), msg.length(),0);
-          }
-      }
-  }
-  else
-  {
-      std::cout << "Unknown command from client:" << buffer << std::endl;
-  }
-     
-}
-
-const char* getConnectionString(char* argv){
-    std::cout << "ARGV[4]: " << argv << std::endl;
-    std::string con = "CONNECT ";
-    size_t len = strlen(argv);
-    char *connectName = (char*)malloc(len+1);
-    strcpy(connectName, argv);
-    std::string c = con + connectName;
-    const char* connectionString = c.c_str();
-    std::cout << "con: " << connectionString << std::endl; 
-    return connectionString;
-}
-
-int connectToBotServer(int &sock, char* argv[]){
-    std::cout << "In function" << std::endl;
+void connectToBotServer(char* ip, char* port, char* name){
+    int sock;
     struct addrinfo hints, *svr;
     struct sockaddr_in serv_addr;
     int set = 1;                              // Toggle for setsockopt
-
-    std::cout << "ARGV[0]: " << argv[0] << std::endl;
-    std::cout << "ARGV[1]: " << argv[1] << std::endl;
-    std::cout << "ARGV[2]: " << argv[2] << std::endl;
-    std::cout << "ARGV[3]: " << argv[3] << std::endl;
-    std::cout << "ARGV[4]: " << argv[4] << std::endl;
  
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
       
     memset(&hints, 0, sizeof(hints));
 
-    if(getaddrinfo(argv[2], argv[3], &hints, &svr) != 0) {
+    std::cout << ip << ", " << port << std::endl;
+    if(getaddrinfo(ip, port, &hints, &svr) != 0) {
         perror("getaddrinfo failed");
         exit(0);
     }
 
    struct hostent *server;
-   server = gethostbyname(argv[2]);
+   server = gethostbyname(ip);
 
-   bzero((char *) &serv_addr, sizeof(serv_addr));
-   serv_addr.sin_family = AF_INET;
-   bcopy((char *)server->h_addr,
-      (char *)&serv_addr.sin_addr.s_addr,
-      server->h_length);
+    bzero((char *) &serv_addr, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    bcopy((char *)server->h_addr, (char *)&serv_addr.sin_addr.s_addr, server->h_length);
 
-   serv_addr.sin_port = htons(atoi(argv[3]));
+     serv_addr.sin_port = htons(atoi(port));
 
-   sock = socket(AF_INET, SOCK_STREAM, 0);
+     sock = socket(AF_INET, SOCK_STREAM, 0);
 
     if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &set, sizeof(set)) < 0)
-   {
-       printf("Failed to set SO_REUSEADDR for port %s\n", argv[3]);
-       perror("setsockopt failed: ");
-   }
+    {
+        printf("Failed to set SO_REUSEADDR for port %s\n", port);
+        perror("setsockopt failed: ");
+    }
 
-   if(connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr) )< 0)
-   {
-       printf("Failed to open socket to server: %s\n", argv[2]);
-       perror("Connect failed: ");
-       exit(0);
-   }
+    if(connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr) )< 0)
+    {
+        printf("Failed to open socket to server: %s\n", ip);
+        perror("Connect failed: ");
+        exit(0);
+    }
 
     std::string con = "CONNECT ";
-    size_t len = strlen(argv[4]);
+    size_t len = strlen(name);
     char *connectName = (char*)malloc(len+1);
-    strcpy(connectName, argv[4]);
+    strcpy(connectName, name);
+    serverName = connectName;
     std::string c = con + connectName;
     const char* connectionString = c.c_str();
 
+
     if(send(sock, connectionString, strlen(connectionString), 0) == -1) {
         perror("send(), to server failed");
-        return -1;
     }
+    else {
+        servers[servers.size() - 1] = new Client(sock, name);
+    }
+}
 
-    return sock;
+// Process command from client on the server
+
+void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds, 
+                  char *buffer) 
+{
+    std::vector<std::string> tokens;
+    std::string token;
+
+    // Split command from client into tokens for parsing
+    std::stringstream stream(buffer);
+
+    while(stream >> token)
+      tokens.push_back(token);
+
+    if((tokens[0].compare("CONNECT") == 0) && (tokens.size() == 3))
+    {
+        char ip[tokens[1].size() + 1];
+        char port[tokens[2].size() + 1];
+        std::strcpy(ip, tokens[1].c_str());
+        std::strcpy(port, tokens[2].c_str());
+
+        connectToBotServer(ip, port, serverName);
+    }
+    else if((tokens[0].compare("CONNECT") == 0) && (tokens.size() == 2))
+    {
+        clients[clientSocket]->name = tokens[1];
+    }
+    else if(tokens[0].compare("LEAVE") == 0)
+    {
+        // Close the socket, and leave the socket handling
+        // code to deal with tidying up clients etc. when
+        // select() detects the OS has torn down the connection.
+    
+        closeClient(clientSocket, openSockets, maxfds);
+    }
+    else if(tokens[0].compare("WHO") == 0)
+    {
+        std::cout << "Who is logged on" << std::endl;
+        std::string msg;
+
+        for(auto const& names : clients)
+        {
+            msg += names.second->name + ",";
+            std::cout << names.first << " " << names.second->name << std::endl;
+        }
+        // Reducing the msg length by 1 loses the excess "," - which
+        // granted is totally cheating.
+        send(clientSocket, msg.c_str(), msg.length()-1, 0);
+
+    }
+    // This is slightly fragile, since it's relying on the order
+    // of evaluation of the if statement.
+    else if((tokens[0].compare("MSG") == 0) && (tokens[1].compare("ALL") == 0))
+    {
+        std::string msg;
+        for(auto i = tokens.begin()+2;i != tokens.end();i++) 
+        {
+            msg += *i + " ";
+        }
+
+        for(auto const& pair : clients)
+        {
+            send(pair.second->sock, msg.c_str(), msg.length(),0);
+        }
+    }
+    else if(tokens[0].compare("MSG") == 0)
+    {
+        for(auto const& pair : clients)
+        {
+            if(pair.second->name.compare(tokens[1]) == 0)
+            {
+                std::string msg;
+                for(auto i = tokens.begin()+2;i != tokens.end();i++) 
+                {
+                    msg += *i + " ";
+                }
+                send(pair.second->sock, msg.c_str(), msg.length(),0);
+            }
+        }
+    }
+    else
+    {
+        std::cout << "Unknown command from client:" << buffer << std::endl;
+    }
+     
 }
 
 int main(int argc, char* argv[])
@@ -301,12 +303,10 @@ int main(int argc, char* argv[])
     bool finished;
     int listenSock;                 // Socket for connections to server
     int clientSock;                 // Socket of connecting client
-    int serverConnectedSocket;      // Socket connecting to bot server
     fd_set openSockets;             // Current open sockets 
     fd_set readSockets;             // Socket list for select()        
     fd_set exceptSockets;           // Exception socket list
     int maxfds;                     // Passed to select() as max fd in set
-    char *serverName;               // Name of this server
     struct sockaddr_in client;
     struct sockaddr_in serv_addr;
     socklen_t clientLen;
@@ -317,6 +317,7 @@ int main(int argc, char* argv[])
         printf("Usage1: chat_server <ip port>\nUsage2: chat_server <ip_port> <ip_to_connect_to> <port_to_connect_to>");
         exit(0);
     }
+
     // Setup socket for server to listen to
 
     listenSock = open_socket(atoi(argv[1])); 
@@ -334,10 +335,7 @@ int main(int argc, char* argv[])
         FD_SET(listenSock, &openSockets);
         maxfds = listenSock;
         if ( argc == 5) {
-            
-            std::cout << "Connecting to another server.." << std::endl;
-
-            serverConnectedSocket = connectToBotServer(serverConnectedSocket, argv);
+            connectToBotServer(argv[2], argv[3], argv[4]);
         }
     }
 
