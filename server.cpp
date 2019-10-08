@@ -55,6 +55,24 @@ class Client
     ~Client(){}            // Virtual destructor defined for base class
 };
 
+class Server
+{
+    public: 
+        int sock;
+        std::string name;
+        char* ip;
+        char* port;
+
+        Server(int socket, std::string name, char* ip, char* port){
+            this->sock = socket;
+            this->name = name;
+            this->ip = ip;
+            this->port = port;
+        }
+        
+        ~Server(){}
+};
+
 // Note: map is not necessarily the most efficient method to use here,
 // especially for a server with large numbers of simulataneous connections,
 // where performance is also expected to be an issue.
@@ -63,7 +81,7 @@ class Client
 // (indexed on socket no.) sacrificing memory for speed.
 
 std::map<int, Client*> clients; // Lookup table for per Client information
-std::map<int, Client*> servers; // Lookup table for per Server information
+std::map<int, Server*> servers; // Lookup table for per Server information
 
 // Open socket for specified port.
 //
@@ -207,7 +225,7 @@ void connectToBotServer(char* ip, char* port, char* name){
         perror("send(), to server failed");
     }
     else {
-        servers[servers.size() - 1] = new Client(sock, name);
+        servers[servers.size() - 1] = new Server(sock, name, ip, port);
     }
 }
 
@@ -237,6 +255,14 @@ void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds,
     else if((tokens[0].compare("CONNECT") == 0) && (tokens.size() == 2))
     {
         clients[clientSocket]->name = tokens[1];
+    }
+    else if((tokens[0].compare("LISTSERVERS") == 0) && (tokens.size() == 2))
+    {
+        for(auto const& serv : servers) 
+        {
+            Server *ser = serv.second;
+            std::cout << ser->name << ", " << ser->ip << ", " << ser->port << std::endl;
+        }
     }
     else if(tokens[0].compare("LEAVE") == 0)
     {
