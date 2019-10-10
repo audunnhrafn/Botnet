@@ -68,6 +68,7 @@ class Server
             this->name = name;
             this->ip = ip;
             this->port = port;
+            std::cout << "ip:" << this->ip << " port: " << this->port << std::endl;
         }
         
         ~Server(){}
@@ -82,6 +83,36 @@ class Server
 
 std::map<int, Client*> clients; // Lookup table for per Client information
 std::map<int, Server*> servers; // Lookup table for per Server information
+
+
+/*
+ * Function to get local ip address of user
+ * src: https://www.binarytides.com/tcp-syn-portscan-in-c-with-linux-sockets
+ */
+void get_local_ip ( char * buffer) {
+    int sock = socket ( AF_INET, SOCK_DGRAM, 0);
+    
+    const char* kGoogleDnsIp = "8.8.8.8";
+    int dns_port = 53;
+    
+    struct sockaddr_in serv;
+    
+    memset( &serv, 0, sizeof(serv) );
+    serv.sin_family = AF_INET;
+    serv.sin_addr.s_addr = inet_addr(kGoogleDnsIp);
+    serv.sin_port = htons( dns_port );
+    
+    int err = connect( sock , (const struct sockaddr*) &serv , sizeof(serv) );
+    
+    struct sockaddr_in name;
+    socklen_t namelen = sizeof(name);
+    err = getsockname(sock, (struct sockaddr*) &name, &namelen);
+    
+    const char *p = inet_ntop(AF_INET, &name.sin_addr, buffer, 100);
+    
+    close(sock);
+}
+
 
 // Open socket for specified port.
 //
@@ -142,7 +173,10 @@ int open_socket(int portno)
    }
 }
 
-char * serverName = "V_Group_69";
+// Information about this server;
+char * serverName = (char*)"V_Group_69";
+char SERVERIP[32];
+char * SERVERPORT;
 
 // Close a client's connection, remove it from the client list, and
 // tidy up select sockets afterwards.
@@ -212,7 +246,7 @@ void connectToBotServer(char* ip, char* port, char* name){
         exit(0);
     }
 
-    std::string con = "CONNECT ";
+    std::string con = "LISTSERVERS ";
     size_t len = strlen(name);
     char *connectName = (char*)malloc(len+1);
     strcpy(connectName, name);
@@ -258,11 +292,14 @@ void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds,
     }
     else if((tokens[0].compare("LISTSERVERS") == 0) && (tokens.size() == 2))
     {
+        std::string msg = "SERVER," + (std::string)serverName + "," + (std::string)SERVERIP + "," + (std::string)SERVERPORT + ";" ;
         for(auto const& serv : servers) 
         {
             Server *ser = serv.second;
-            std::cout << ser->name << ", " << ser->ip << ", " << ser->port << std::endl;
+            msg += (std::string)ser->name + "," + std::string(ser->ip) + "," + std::string(ser->port) + ";"; 
         }
+
+        std::cout << msg << std::endl;
     }
     else if(tokens[0].compare("LEAVE") == 0)
     {
@@ -343,6 +380,11 @@ int main(int argc, char* argv[])
         printf("Usage1: chat_server <ip port>\nUsage2: chat_server <ip_port> <ip_to_connect_to> <port_to_connect_to>");
         exit(0);
     }
+
+    // set the ip and port to global variables
+    get_local_ip(SERVERIP);
+    SERVERPORT = argv[1];
+    std::cout << "server id: " << SERVERIP;
 
     // Setup socket for server to listen to
 
