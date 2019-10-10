@@ -60,10 +60,10 @@ class Server
     public: 
         int sock;
         std::string name;
-        char* ip;
-        char* port;
+        std::string ip;
+        std::string port;
 
-        Server(int socket, std::string name, char* ip, char* port){
+        Server(int socket, std::string name, std::string ip, std::string port){
             this->sock = socket;
             this->name = name;
             this->ip = ip;
@@ -296,7 +296,7 @@ void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds,
         for(auto const& serv : servers) 
         {
             Server *ser = serv.second;
-            msg += (std::string)ser->name + "," + std::string(ser->ip) + "," + std::string(ser->port) + ";"; 
+            msg += ser->name + "," + ser->ip + "," + ser->port + ";"; 
         }
 
         std::cout << msg << std::endl;
