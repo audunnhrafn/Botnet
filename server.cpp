@@ -68,7 +68,12 @@ class Server
             this->name = name;
             this->ip = ip;
             this->port = port;
-            std::cout << "ip:" << this->ip << " port: " << this->port << std::endl;
+        }
+
+        Server(int socket, std::string ip, std::string port){
+            this->sock = socket;
+            this->ip = ip;
+            this->port = port;
         }
         
         ~Server(){}
@@ -210,13 +215,13 @@ void connectToBotServer(char* ip, char* port, char* name){
     struct addrinfo hints, *svr;
     struct sockaddr_in serv_addr;
     int set = 1;                              // Toggle for setsockopt
+    char buffer[1025];
  
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
       
     memset(&hints, 0, sizeof(hints));
 
-    std::cout << ip << ", " << port << std::endl;
     if(getaddrinfo(ip, port, &hints, &svr) != 0) {
         perror("getaddrinfo failed");
         exit(0);
@@ -246,27 +251,44 @@ void connectToBotServer(char* ip, char* port, char* name){
         exit(0);
     }
 
-    std::string con = "LISTSERVERS ";
-    size_t len = strlen(name);
-    char *connectName = (char*)malloc(len+1);
-    strcpy(connectName, name);
-    serverName = connectName;
-    std::string c = con + connectName;
-    const char* connectionString = c.c_str();
-
-
-    if(send(sock, connectionString, strlen(connectionString), 0) == -1) {
+    memset(buffer, 0, sizeof(buffer));
+    std::string message = "\x01LISTSERVERS,P3_GROUP_69\x04";
+    if(send(sock, message.c_str(), message.length() + 1, 0) == -1) {
         perror("send(), to server failed");
     }
     else {
-        servers[servers.size() - 1] = new Server(sock, name, ip, port);
+        servers[servers.size() - 1] = new Server(sock, ip, port);
+    }
+
+    if(recv(sock, buffer, sizeof(buffer), 0) == 0)
+    {
+        printf("Client closed connection: %d", sock);
+    }
+    else 
+    {
+        std::cout << buffer << std::endl;
+    }
+
+}
+
+void serverCommand(int clientSocket, fd_set *openSockets, int *maxfds, char *buffer)
+{
+    std::vector<std::string> tokens;
+    std::string token;
+
+    // Split command from client into tokens for parsing
+    std::stringstream stream(buffer);
+
+    while(stream >> token)
+      tokens.push_back(token);
+
+    if((tokens[0].compare("LISTSERVERS") == 0)) {
     }
 }
 
-// Process command from client on the server
 
-void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds, 
-                  char *buffer) 
+// Process command from client on the server
+void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds, char *buffer) 
 {
     std::vector<std::string> tokens;
     std::string token;
@@ -299,7 +321,9 @@ void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds,
             msg += ser->name + "," + ser->ip + "," + ser->port + ";"; 
         }
 
-        std::cout << msg << std::endl;
+        if(send(clientSocket, msg.c_str(), msg.length()-1, 0) == -1) {
+            perror("send(), to server failed");
+        }
     }
     else if(tokens[0].compare("LEAVE") == 0)
     {
@@ -308,6 +332,9 @@ void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds,
         // select() detects the OS has torn down the connection.
     
         closeClient(clientSocket, openSockets, maxfds);
+    }
+    else if(tokens[0].compare("SERVERS") == 0) {
+        std::cout << "IN SERVERS " << std::endl;
     }
     else if(tokens[0].compare("WHO") == 0)
     {
@@ -374,6 +401,7 @@ int main(int argc, char* argv[])
     struct sockaddr_in serv_addr;
     socklen_t clientLen;
     char buffer[1025];              // buffer for reading from clients
+    
 
     if(argc != 2 && argc != 5)
     {
@@ -384,7 +412,6 @@ int main(int argc, char* argv[])
     // set the ip and port to global variables
     get_local_ip(SERVERIP);
     SERVERPORT = argv[1];
-    std::cout << "server id: " << SERVERIP;
 
     // Setup socket for server to listen to
 
@@ -468,8 +495,8 @@ int main(int argc, char* argv[])
                       else
                       {
                           std::cout << buffer << std::endl;
-                          clientCommand(client->sock, &openSockets, &maxfds, 
-                                        buffer);
+                          clientCommand(client->sock, &openSockets, &maxfds, buffer);
+                          serverCommand(client->sock, &openSockets, &maxfds, buffer);
                       }
                   }
                }
