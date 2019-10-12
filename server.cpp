@@ -76,8 +76,10 @@ public:
         this->name = name;
         this->ip = ip;
         this->port = port;
-    }
 
+        cout << "name from constructor: " << name << endl;
+    }
+     
     ~Server() {} // Virtual destructor defined for base class
 };
 
@@ -89,7 +91,7 @@ void closeClient(int clientSocket, fd_set *openSockets, int *maxfds);
 void closeServer(int serverSocket, fd_set *openSockets, int *maxfds);
 void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds, char *buffer);
 void serverCommand(int serverSocket, fd_set *openSockets, int *maxfds, char *buffer);
-void connectOtherServer(const char *ip, const char *port);
+void connectToBotServer(const char *ip, const char *port);
 void destuffHex(string &s);
 void stuffHex(string &s);
 void get_local_ip ( char * buffer);
@@ -193,7 +195,7 @@ int main(int argc, char *argv[])
                 clients[clientSock] = new Client(clientSock);
                 // Decrement the number of sockets waiting to be dealt with
                 n--;
-                printf("Client connected on server: %d\n", clientSock);
+                printf("Client has connected");
             }
             // same as if statement above but for Servers
             if (FD_ISSET(serverListenSock, &readSockets))
@@ -204,12 +206,12 @@ int main(int argc, char *argv[])
                 maxfds = max(maxfds, serverSock);
                 servers[serverSock] = new Server(serverSock);
                 n--;
-                printf("External server connected on server: %d\n", serverSock);
+                printf("A new server has connected!");
 
                 string msg = "\x01LISTSERVERS," + local_group_name + "\x04";
                 if (send(serverSock, msg.c_str(), msg.length(), 0) < 0)
                 {
-                    perror("Failed to send LISTSERVERS to external server");
+                    perror("Failed to send LISTSERVERS to new server");
                 }
             }
             // Now check for commands from clients and servers
@@ -233,8 +235,7 @@ int main(int argc, char *argv[])
                         else
                         {
                             cout << buffer << endl;
-                            clientCommand(client->sock, &openSockets, &maxfds,
-                                          buffer);
+                            clientCommand(client->sock, &openSockets, &maxfds, buffer);
                         }
                     }
                 }
@@ -260,9 +261,12 @@ int main(int argc, char *argv[])
                         }
                         else
                         {
-                            cout << "Incoming command::" << buffer << endl;
-                            serverCommand(server->sock, &openSockets, &maxfds,
-                                          buffer);
+                            cout << "From : " << server->name << "----------------" << endl;
+                            cout << buffer << endl;
+                            serverCommand(server->sock, &openSockets, &maxfds, buffer);
+                            cout << "---------------------" << endl;
+                            cout << endl;
+
                         }
                     }
                 }
@@ -403,7 +407,7 @@ void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds, char *buf
 
     if ((tokens[0].compare("CONNECT") == 0) && (tokens.size() == 3))
     {
-        connectOtherServer(tokens[1].c_str(), tokens[2].c_str());
+        connectToBotServer(tokens[1].c_str(), tokens[2].c_str());
     }
     else if (tokens[0].compare("LISTSERVERS") == 0)
     {
@@ -412,13 +416,8 @@ void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds, char *buf
         msg += "SERVERS," + local_group_name + "," + local_ip + "," + local_server_port + ";";
         for (auto const &server : servers)
         {
-            if (server.second->name != "" && server.second->ip != "" && server.second->port != "")
-            {
                 msg += server.second->name + "," + server.second->ip + "," + server.second->port + ";";
-            }
         }
-
-        stuffHex(msg);
 
         send(clientSocket, msg.c_str(), msg.length(), 0);
     }
@@ -439,9 +438,7 @@ void serverCommand(int serverSocket, fd_set *openSockets, int *maxfds, char *buf
         commands.push_back(string(command));
     }
 
-    for(int i = 0 ; i < commands.size(); i++) {
-        cout << "command " << i << ": " << commands[i] << endl;
-    }
+
 
     for (string command : commands)
     {
@@ -462,7 +459,7 @@ void serverCommand(int serverSocket, fd_set *openSockets, int *maxfds, char *buf
         {
             string msg;
 
-            msg += "\x01SERVERS," + local_group_name + "," + local_ip + "," + local_server_port + ";";
+            msg += "SERVERS," + local_group_name + "," + local_ip + "," + local_server_port + ";";
             for (auto const &server : servers)
             {
                 Server *s = server.second;
@@ -472,7 +469,7 @@ void serverCommand(int serverSocket, fd_set *openSockets, int *maxfds, char *buf
                 }
             }
 
-            msg += "\x04";
+            stuffHex(msg);
 
             if ((send(serverSocket, msg.c_str(), msg.length(), 0)) < 0)
             {
@@ -489,6 +486,18 @@ void serverCommand(int serverSocket, fd_set *openSockets, int *maxfds, char *buf
                 s->port = tokens[3];
             }
         }
+        else if ((tokens[0].compare("KEEPALIVE") == 0) && tokens.size() == 2) 
+        {
+            cout << "INSIDE KEEPALIVE" << endl;
+        }
+        else if ((tokens[0].compare("GET_MSG") == 0) && tokens.size() == 2)
+        {
+            cout << "INSIDE GET_MSG" << endl;
+        }
+        else if ((tokens[0].compare("SEND_MSG") == 0) && tokens.size() == 2)
+        {
+            cout << "INSIDE SEND_MSG" << endl;
+        }
         else
         {
             cout << "Unknown command from server:" << buffer << endl;
@@ -496,7 +505,7 @@ void serverCommand(int serverSocket, fd_set *openSockets, int *maxfds, char *buf
     }
 }
 
-void connectOtherServer(const char *ip, const char *port)
+void connectToBotServer(const char *ip, const char *port)
 {
     struct addrinfo hints, *svr;  // Network host entry for server
     struct sockaddr_in serv_addr; // Socket address for server
