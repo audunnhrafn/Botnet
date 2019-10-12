@@ -95,6 +95,7 @@ void connectToBotServer(const char *ip, const char *port);
 void destuffHex(string &s);
 void stuffHex(string &s);
 void get_local_ip ( char * buffer);
+string constructMsg(vector<string> tokens);
 vector<string> split(string s, string delim);
 
 int main(int argc, char *argv[])
@@ -195,7 +196,7 @@ int main(int argc, char *argv[])
                 clients[clientSock] = new Client(clientSock);
                 // Decrement the number of sockets waiting to be dealt with
                 n--;
-                printf("Client has connected");
+                printf("Client has connected \n");
             }
             // same as if statement above but for Servers
             if (FD_ISSET(serverListenSock, &readSockets))
@@ -206,7 +207,7 @@ int main(int argc, char *argv[])
                 maxfds = max(maxfds, serverSock);
                 servers[serverSock] = new Server(serverSock);
                 n--;
-                printf("A new server has connected!");
+                printf("A new server has connected! \n");
 
                 string msg = "\x01LISTSERVERS," + local_group_name + "\x04";
                 if (send(serverSock, msg.c_str(), msg.length(), 0) < 0)
@@ -403,7 +404,9 @@ void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds, char *buf
     stringstream stream(buffer);
 
     while (stream >> token)
+    {
         tokens.push_back(token);
+    }
 
     if ((tokens[0].compare("CONNECT") == 0) && (tokens.size() == 3))
     {
@@ -420,6 +423,27 @@ void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds, char *buf
         }
 
         send(clientSocket, msg.c_str(), msg.length(), 0);
+    }
+    else if ((tokens[0].compare("SENDMSG") == 0)) 
+    {
+        // find the server with the group_id in the server
+        bool groupfound = false;
+        for (auto const& serv: servers) 
+        {
+            Server *server = serv.second;
+            if (server->name == tokens[1])
+            {
+                groupfound = true;
+                string msg = constructMsg(tokens);
+
+                if(send(server->sock, msg.c_str(), msg.length(), 0) < 0) {
+                    perror("Failed to SEND_MSG to server");
+                }
+            }
+        }
+        if (!groupfound) {
+            cout << "Group ID not found" << endl;
+        }
     }
     else
     {
@@ -470,7 +494,7 @@ void serverCommand(int serverSocket, fd_set *openSockets, int *maxfds, char *buf
             }
 
             stuffHex(msg);
-
+ 
             if ((send(serverSocket, msg.c_str(), msg.length(), 0)) < 0)
             {
                 perror("FAILED TO SEND");
@@ -494,9 +518,9 @@ void serverCommand(int serverSocket, fd_set *openSockets, int *maxfds, char *buf
         {
             cout << "INSIDE GET_MSG" << endl;
         }
-        else if ((tokens[0].compare("SEND_MSG") == 0) && tokens.size() == 2)
+        else if ((tokens[0].compare("SEND_MSG") == 0) && tokens.size() == 4)
         {
-            cout << "INSIDE SEND_MSG" << endl;
+            cout << "I GOT THE SEND_MSG COMMAND" << endl;
         }
         else
         {
@@ -597,4 +621,17 @@ void destuffHex(string &s)
 void stuffHex(string &s) 
 {
     s = "\x01" + s + "\x04";
+}
+
+string constructMsg(vector<string> tokens) {
+    string msg = "SEND_MSG," + tokens[0] + "," + tokens[1] + ",";
+
+    for(int i = 2; i < tokens.size(); i++) 
+    {
+        msg += " " + tokens[i];
+    }
+
+    stuffHex(msg);
+
+    return msg;
 }
