@@ -23,3 +23,6 @@ Included is a make file with 4 commands:
 -- <b>SENDMSG <"GOUPID"> <"MESSAGE"></b> - Send a message to the group ID given with the message given.  
 - **LISTSERVERS** - Lists servers connected to your server.    
 
+#### About the pictures  
+Please note that the attached pictures refer to CLIENT comands to the server, they are screenshot of wireshark data from Client to Server.
+
