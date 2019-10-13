@@ -488,14 +488,14 @@ void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds, char *buf
         for (auto const& serv: servers) 
         {
             Server *server = serv.second;
-                string msg = "\x01GET_MSG," + tokens[1] + "\x04";
+            string msg = "\x01GET_MSG," + tokens[1] + "\x04";
 
-                if(send(server->sock, msg.c_str(), msg.length(), 0) < 0) {
-                    perror("Failed to GETMSG to server");
-                }
-                else{
-                    Logger(msg, "Sent");
-                }
+            if(send(server->sock, msg.c_str(), msg.length(), 0) < 0) {
+                perror("Failed to GETMSG to server");
+            }
+            else{
+                Logger(msg, "Sent");
+            }
         }
     }
     
@@ -675,7 +675,7 @@ void connectToBotServer(const char *ip, const char *port)
 }
 
 void get_local_ip ( char * buffer) {
-    int sock = socket ( AF_INET, SOCK_DGRAM, 0);
+    int sock = socket (AF_INET, SOCK_DGRAM, 0);
     
     const char* kGoogleDnsIp = "8.8.8.8";
     int dns_port = 53;
@@ -734,10 +734,6 @@ void sendKeepalive(fd_set &openSockets, fd_set &readSockets, int *maxfds){
             if(send(serv->sock, msg.c_str(), msg.length(),0) < 0){
                 perror("Sending KEEPALIVE failed");
             }
-            else{
-                Logger(msg, "Sent");
-            }
-
             closeServer(serv->sock, &openSockets, maxfds);
         }
         else
@@ -749,9 +745,6 @@ void sendKeepalive(fd_set &openSockets, fd_set &readSockets, int *maxfds){
             stuffHex(msg);
             if(send(serv->sock, msg.c_str(), msg.length(),0) < 0){
                 perror("Sending KEEPALIVE failed");
-            }
-            else{
-                Logger(msg, "Sent");
             }
         }
 
