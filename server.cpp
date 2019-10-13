@@ -41,6 +41,9 @@ using namespace std;
 char local_ip[15];
 const char *local_server_port;
 const string local_group_name = "P3_GROUP_69";
+const short KEEPALIVE = 60; 
+time_t keepaliveTimer = time(0);
+struct timeval waitTime = {60};
 
 int n;              // number of sockets
 int maxfds;         // Passed to select() as max fd in set
@@ -67,6 +70,7 @@ public:
     string name; // Limit length of name of servers user
     string ip;  // The ip of the connecting server
     string port; 
+    time_t keepAliveTime;
 
     Server(int socket) : sock(socket) {}
 
@@ -76,7 +80,8 @@ public:
         this->name = name;
         this->ip = ip;
         this->port = port;
-
+        this->keepAliveTime = time(0);
+        
         cout << "name from constructor: " << name << endl;
     }
      
@@ -97,6 +102,7 @@ void connectToBotServer(const char *ip, const char *port);
 void destuffHex(string &s);
 void stuffHex(string &s);
 void get_local_ip ( char * buffer);
+void sendKeepalive(fd_set &openSockets, fd_set &readSockets, int *maxfds);
 string constructMsg(vector<string> tokens);
 vector<string> split(string s, string delim);
 
@@ -176,7 +182,7 @@ int main(int argc, char *argv[])
         memset(buffer, 0, sizeof(buffer));
 
         // Look at sockets and see which ones have something to be read()
-        n = select(maxfds + 1, &readSockets, NULL, &exceptSockets, NULL);
+        n = select(maxfds + 1, &readSockets, NULL, &exceptSockets, &waitTime);
 
         if (n < 0)
         {
@@ -185,9 +191,14 @@ int main(int argc, char *argv[])
         }
         else
         {
-            // First, accept  any new connections to the server on the listening socket
+            // 
+            if(difftime(time(0), keepaliveTimer) > 60) 
+            {
+                sendKeepalive(openSockets, readSockets, &maxfds);
+            }              // First, accept  any new connections to the server on the listening socket
             if (FD_ISSET(clientListenSock, &readSockets))
             {
+                cout << "first" << endl;
                 clientSock = accept(clientListenSock, (struct sockaddr *)&client, &clientLen);
                 printf("accept CLIENT***\n");
                 // Add new client to the list of open sockets
@@ -203,6 +214,7 @@ int main(int argc, char *argv[])
             // same as if statement above but for Servers
             if (FD_ISSET(serverListenSock, &readSockets))
             {
+                cout << "sec" << endl;
                 serverSock = accept(serverListenSock, (struct sockaddr *)&server, &serverLen);
                 printf("accept SERVER***\n");
                 FD_SET(serverSock, &openSockets);
@@ -220,6 +232,7 @@ int main(int argc, char *argv[])
             // Now check for commands from clients and servers
             while (n-- > 0)
             {
+                 
                 vector<int> socksToClose; // sockets to close after each for loops, this way we don't get segfault!
 
                 for (auto const &pair : clients)
@@ -280,6 +293,8 @@ int main(int argc, char *argv[])
                     closeServer(i, &openSockets, &maxfds);
                 }
                 socksToClose.clear();
+                   
+                
             }
         }
     }
@@ -483,7 +498,8 @@ void serverCommand(int serverSocket, fd_set *openSockets, int *maxfds, char *buf
         commands.push_back(string(command));
     }
 
-
+    // Activity on the socket, keep it alive.
+    servers[serverSocket]->keepAliveTime = time(0);
 
     for (string command : commands)
     {
@@ -520,12 +536,12 @@ void serverCommand(int serverSocket, fd_set *openSockets, int *maxfds, char *buf
             {
                 perror("FAILED TO SEND");
             }
-            string newCommand = "LISTSERVERS," + local_group_name;
+            /*string newCommand = "LISTSERVERS," + local_group_name;
             stuffHex(newCommand);
             if ((send(serverSocket, newCommand.c_str(), newCommand.length(), 0)) < 0)
             {
                 perror("FAILED TO SEND");
-            }
+            }*/
         }
         else if (tokens[0].compare("SERVERS") == 0)
         {
@@ -539,7 +555,8 @@ void serverCommand(int serverSocket, fd_set *openSockets, int *maxfds, char *buf
         }
         else if ((tokens[0].compare("KEEPALIVE") == 0) && tokens.size() == 2) 
         {
-            cout << "INSIDE KEEPALIVE" << endl;
+            cout << "Keep " <<  servers[serverSocket]->name << " Alive" << endl;
+            servers[serverSocket]->keepAliveTime = time(0); // Resetting keepalive time
         }
         else if ((tokens[0].compare("GET_MSG") == 0) && tokens.size() == 2)
         {
@@ -684,4 +701,26 @@ string constructMsg(vector<string> tokens) {
     stuffHex(msg);
 
     return msg;
+}
+
+void sendKeepalive(fd_set &openSockets, fd_set &readSockets, int *maxfds){
+    cout << "Sending Keepalive" << endl;
+    for(auto const& server: servers){
+        Server* serv = server.second;
+        // Close connection if inactive for 10 mins
+        if(difftime(time(0), serv->keepAliveTime) > 600)
+        {
+            closeServer(serv->sock, &openSockets, maxfds);
+        }
+        else
+        {
+            string msg = "KEEPALIVE,0";
+            stuffHex(msg);
+            if(send(serv->sock, msg.c_str(), msg.length(),0) < 0){
+                perror("Sending KEEPALIVE failed");
+            }
+        }
+
+    }
+    keepaliveTimer = time(0);
 }
