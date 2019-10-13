@@ -85,6 +85,8 @@ public:
 
 map<int, Client *> clients; // Lookup table for per Client information
 map<int, Server *> servers; // Lookup table for per Server information
+map<string, vector<string>> incommingMsg; // Lookup tables for incomming msg <to_group_id, msg>
+map<string, vector<string>> outgoingMsg; // Lookup tables for outgoing msg <to_group_id, msg>
 
 int open_socket(int portno);
 void closeClient(int clientSocket, fd_set *openSockets, int *maxfds);
@@ -442,9 +444,28 @@ void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds, char *buf
             }
         }
         if (!groupfound) {
-            cout << "Group ID not found" << endl;
+            cout << "Group ID not found, setting message to outgoingMessages" << endl;
+            string msg;
+            for (int i = 2; i < tokens.size(); i++) {
+                msg += tokens[i] + " ";
+            }
+            outgoingMsg[tokens[1]].push_back(msg);
         }
     }
+    else if ((tokens[0].compare("GETMSG") == 0) && tokens.size() == 2) 
+    {
+        // find the server with the group_id in the server
+        for (auto const& serv: servers) 
+        {
+            Server *server = serv.second;
+                string msg = "\x01GET_MSG," + tokens[1] + "\x04";
+
+                if(send(server->sock, msg.c_str(), msg.length(), 0) < 0) {
+                    perror("Failed to GETMSG to server");
+                }
+        }
+    }
+    
     else
     {
         cout << "Unknown command from client:" << buffer << endl;
@@ -499,6 +520,12 @@ void serverCommand(int serverSocket, fd_set *openSockets, int *maxfds, char *buf
             {
                 perror("FAILED TO SEND");
             }
+            string newCommand = "LISTSERVERS," + local_group_name;
+            stuffHex(newCommand);
+            if ((send(serverSocket, newCommand.c_str(), newCommand.length(), 0)) < 0)
+            {
+                perror("FAILED TO SEND");
+            }
         }
         else if (tokens[0].compare("SERVERS") == 0)
         {
@@ -516,11 +543,34 @@ void serverCommand(int serverSocket, fd_set *openSockets, int *maxfds, char *buf
         }
         else if ((tokens[0].compare("GET_MSG") == 0) && tokens.size() == 2)
         {
-            cout << "INSIDE GET_MSG" << endl;
+            if (outgoingMsg.size() != 0) {
+                // send all messages that have the tokens[1] as key on the outgoingMsg loookup
+                for (auto const& outgoingMessage : outgoingMsg[tokens[1]]) {
+                    string msg = "SEND_MSG," + local_group_name + "," + tokens[1] + "," + outgoingMessage;
+                    stuffHex(msg);
+
+                    if ((send(serverSocket, msg.c_str(), msg.length(), 0)) < 0)
+                    {
+                        perror("FAILED TO SEND");
+                    }
+                }
+                // delete messages that have been sent
+                outgoingMsg.erase(tokens[1]);
+            }
         }
         else if ((tokens[0].compare("SEND_MSG") == 0) && tokens.size() == 4)
         {
             cout << "I GOT THE SEND_MSG COMMAND" << endl;
+        }
+        else if ((tokens[0].compare("LEAVE") == 0) && tokens.size() == 3)
+        {
+            for(auto const& serv : servers) {
+                Server* server = serv.second;
+                if (server->ip == tokens[1] && server->port == tokens[2]) 
+                {
+                    closeServer(server->sock, openSockets, maxfds);
+                }
+            }
         }
         else
         {
@@ -624,11 +674,11 @@ void stuffHex(string &s)
 }
 
 string constructMsg(vector<string> tokens) {
-    string msg = "SEND_MSG," + tokens[0] + "," + tokens[1] + ",";
+    string msg = "SEND_MSG," + tokens[1] + "," + local_group_name + ",";
 
     for(int i = 2; i < tokens.size(); i++) 
     {
-        msg += " " + tokens[i];
+        msg += tokens[i] + " ";
     }
 
     stuffHex(msg);
