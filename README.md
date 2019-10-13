@@ -18,8 +18,8 @@ Included is a make file with 4 commands:
 5. If both the ports were open then the server and client should be up and running.  
 
 #### Client Commands
-<b>CONNECT <"IP"> <"PORT"> </b> - Connects to server in given ip and port. When this connection is esthablised, the connecting server will send LISTSERVERS,<"GROUP_ID"> and SERVERS,<"CONNECTING_GROUP_ID">,<"CONNECTING_ID">;
-**GETMSG  <*"GROUPID">***  -  Get messages waiting for the group ID given.  
-<b>SENDMSG <"GOUPID"> <"MESSAGE"></b> - Send a message to the group ID given with the message given.  
-**LISTSERVERS** - Lists servers connected to your server.  
+- <b>CONNECT <"IP"> <"PORT"> </b> - Connects to server in given ip and port. When this connection is esthablised, the connecting server will send LISTSERVERS,<"GROUP_ID"> and SERVERS,<"CONNECTING_GROUP_ID">,<"CONNECTING_ID">;  
+- **GETMSG  <*"GROUPID">***  -  Get messages waiting for the group ID given.    
+-- <b>SENDMSG <"GOUPID"> <"MESSAGE"></b> - Send a message to the group ID given with the message given.  
+- **LISTSERVERS** - Lists servers connected to your server.    
 
