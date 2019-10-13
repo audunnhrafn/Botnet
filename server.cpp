@@ -389,6 +389,7 @@ void closeClient(int clientSocket, fd_set *openSockets, int *maxfds)
     FD_CLR(clientSocket, openSockets);
 }
 
+// src: https://stackoverflow.com/questions/14265581/parse-split-a-string-in-c-using-string-delimiter-standard-c
 vector<string> split (string s, string delim) {
     size_t pos_start = 0, pos_end, delim_len = delim.length();
     string token;
