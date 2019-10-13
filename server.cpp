@@ -107,7 +107,7 @@ void get_local_ip ( char * buffer);
 void sendKeepalive(fd_set &openSockets, fd_set &readSockets, int *maxfds);
 string constructMsg(vector<string> tokens);
 vector<string> split(string s, string delim);
-inline void Logger(string logMsg);  
+inline void Logger(string logMsg, string path);  
 inline string getCurrentDateTime(string s);
 
 
@@ -234,6 +234,9 @@ int main(int argc, char *argv[])
                 {
                     perror("Failed to send LISTSERVERS to new server");
                 }
+                else{
+                    Logger(msg, "Sent");
+                }
             }
             // Now check for commands from clients and servers
             while (n-- > 0)
@@ -285,11 +288,10 @@ int main(int argc, char *argv[])
                         {
                             cout << "From : " << server->name << "----------------" << endl;
                             cout << buffer << endl;
-                            Logger(buffer);
+                            Logger(buffer, "Recived");
                             serverCommand(server->sock, &openSockets, &maxfds, buffer);
                             cout << "---------------------" << endl;
                             cout << endl;
-
                         }
                     }
                 }
@@ -445,8 +447,11 @@ void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds, char *buf
         {
                 msg += server.second->name + "," + server.second->ip + "," + server.second->port + ";";
         }
-
-        send(clientSocket, msg.c_str(), msg.length(), 0);
+        if(send(clientSocket, msg.c_str(), msg.length(), 0) < 0){
+            perror("Failed to send Listservers");
+        } else {
+            Logger(msg, "Sent");
+        }
     }
     else if ((tokens[0].compare("SENDMSG") == 0)) 
     {
@@ -462,6 +467,9 @@ void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds, char *buf
 
                 if(send(server->sock, msg.c_str(), msg.length(), 0) < 0) {
                     perror("Failed to SEND_MSG to server");
+                }
+                else{
+                    Logger(msg, "Sent");
                 }
             }
         }
@@ -484,6 +492,9 @@ void clientCommand(int clientSocket, fd_set *openSockets, int *maxfds, char *buf
 
                 if(send(server->sock, msg.c_str(), msg.length(), 0) < 0) {
                     perror("Failed to GETMSG to server");
+                }
+                else{
+                    Logger(msg, "Sent");
                 }
         }
     }
@@ -699,7 +710,7 @@ void stuffHex(string &s)
 }
 
 string constructMsg(vector<string> tokens) {
-    string msg = "SEND_MSG," + tokens[1] + "," + local_group_name + ",";
+    string msg = "SEND_MSG," + local_group_name + "," + tokens[1] + ",";
 
     for(int i = 2; i < tokens.size(); i++) 
     {
@@ -723,6 +734,9 @@ void sendKeepalive(fd_set &openSockets, fd_set &readSockets, int *maxfds){
             if(send(serv->sock, msg.c_str(), msg.length(),0) < 0){
                 perror("Sending KEEPALIVE failed");
             }
+            else{
+                Logger(msg, "Sent");
+            }
 
             closeServer(serv->sock, &openSockets, maxfds);
         }
@@ -736,6 +750,9 @@ void sendKeepalive(fd_set &openSockets, fd_set &readSockets, int *maxfds){
             if(send(serv->sock, msg.c_str(), msg.length(),0) < 0){
                 perror("Sending KEEPALIVE failed");
             }
+            else{
+                Logger(msg, "Sent");
+            }
         }
 
     }
@@ -743,7 +760,8 @@ void sendKeepalive(fd_set &openSockets, fd_set &readSockets, int *maxfds){
 }
 
 // https://stackoverflow.com/questions/7400418/writing-a-log-file-in-c-c
-inline string getCurrentDateTime( string s ){
+inline string getCurrentDateTime(string s)
+{
     time_t now = time(0);
     struct tm  tstruct;
     char  buf[80];
@@ -754,9 +772,9 @@ inline string getCurrentDateTime( string s ){
         strftime(buf, sizeof(buf), "%Y-%m-%d", &tstruct);
     return string(buf);
 };
-inline void Logger( string logMsg ){
-    cout << "logger logging " << endl;
-    string filePath = "./log_"+getCurrentDateTime("date")+".txt";
+inline void Logger(string logMsg, string path)
+{
+    string filePath = "./"+path+"_log_"+getCurrentDateTime("date")+".txt";
     string now = getCurrentDateTime("now");
     ofstream ofs(filePath.c_str(), std::ios_base::out | std::ios_base::app );
     ofs << now << '\t' << logMsg << '\n';

@@ -31,8 +31,11 @@
 *.out
 *.app
 
-# binary files
+# Binary files
 client
 server
 tsamvgroup69
 *.sh
+
+# Log files
+log*.txt
