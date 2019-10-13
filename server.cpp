@@ -41,7 +41,7 @@ using namespace std;
 
 char local_ip[15];
 const char *local_server_port;
-const string local_group_name = "P3_GROUP_40";
+const string local_group_name = "P3_GROUP_69";
 const short KEEPALIVE = 60; 
 time_t keepaliveTimer = time(0);
 struct timeval waitTime = {60};
@@ -90,9 +90,9 @@ public:
     ~Server() {} // Virtual destructor defined for base class
 };
 
+
 map<int, Client *> clients; // Lookup table for per Client information
 map<int, Server *> servers; // Lookup table for per Server information
-map<string, vector<string>> incommingMsg; // Lookup tables for incomming msg <to_group_id, msg>
 map<string, vector<string>> outgoingMsg; // Lookup tables for outgoing msg <to_group_id, msg>
 
 int open_socket(int portno);
@@ -561,12 +561,6 @@ void serverCommand(int serverSocket, fd_set *openSockets, int *maxfds, char *buf
                     perror("FAILED TO SEND");
                 }
 
-                string automessage = "SEND_MSG," + local_group_name + "," + servers[serverSocket]->name + ",This is an automated message please respond";
-                stuffHex(automessage);
-                if ((send(serverSocket, automessage.c_str(), automessage.length(), 0)) < 0)
-                {
-                    perror("FAILED TO SEND");
-                }
                 servers[serverSocket]->listserversSent = true;
             }
         }
@@ -580,12 +574,6 @@ void serverCommand(int serverSocket, fd_set *openSockets, int *maxfds, char *buf
                 s->port = tokens[3];
             }
 
-            string automessage = "SEND_MSG," + local_group_name + "," + servers[serverSocket]->name + ",This is an automated message please respond";
-            stuffHex(automessage);
-            if ((send(serverSocket, automessage.c_str(), automessage.length(), 0)) < 0)
-            {
-                perror("FAILED TO SEND");
-            }
         }
         else if ((tokens[0].compare("KEEPALIVE") == 0) && tokens.size() == 2) 
         {
@@ -620,6 +608,14 @@ void serverCommand(int serverSocket, fd_set *openSockets, int *maxfds, char *buf
                 {
                     closeServer(server->sock, openSockets, maxfds);
                 }
+            }
+        }
+        else if ((tokens[0].compare("STATUSREQ") == 0) && tokens.size() == 2)
+        {
+            string message = "STATUSRESP," + local_group_name;;
+            for (auto const& msg : outgoingMsg)
+            {
+                message += "," + msg.first + "," + to_string(msg.second.size()) + ";";
             }
         }
         else
