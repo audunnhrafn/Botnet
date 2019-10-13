@@ -1,7 +1,7 @@
 //
-// Simple chat client for TSAM-409
+// Simple client for TSAM-409
 //
-// Command line: ./chat_client 4000 
+// Command line: ./client <port> 
 //
 // Author: Jacky Mallett (jacky@ru.is)
 //
