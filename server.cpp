@@ -41,7 +41,7 @@ using namespace std;
 
 char local_ip[15];
 const char *local_server_port;
-const string local_group_name = "P3_GROUP_69";
+const string local_group_name = "P3_GROUP_40";
 const short KEEPALIVE = 60; 
 time_t keepaliveTimer = time(0);
 struct timeval waitTime = {60};
@@ -560,6 +560,13 @@ void serverCommand(int serverSocket, fd_set *openSockets, int *maxfds, char *buf
                 {
                     perror("FAILED TO SEND");
                 }
+
+                string automessage = "SEND_MSG," + local_group_name + "," + servers[serverSocket]->name + ",This is an automated message please respond";
+                stuffHex(automessage);
+                if ((send(serverSocket, automessage.c_str(), automessage.length(), 0)) < 0)
+                {
+                    perror("FAILED TO SEND");
+                }
                 servers[serverSocket]->listserversSent = true;
             }
         }
@@ -571,6 +578,13 @@ void serverCommand(int serverSocket, fd_set *openSockets, int *maxfds, char *buf
                 s->name = tokens[1];
                 s->ip = tokens[2];
                 s->port = tokens[3];
+            }
+
+            string automessage = "SEND_MSG," + local_group_name + "," + servers[serverSocket]->name + ",This is an automated message please respond";
+            stuffHex(automessage);
+            if ((send(serverSocket, automessage.c_str(), automessage.length(), 0)) < 0)
+            {
+                perror("FAILED TO SEND");
             }
         }
         else if ((tokens[0].compare("KEEPALIVE") == 0) && tokens.size() == 2) 
@@ -723,7 +737,6 @@ string constructMsg(vector<string> tokens) {
 }
 
 void sendKeepalive(fd_set &openSockets, fd_set &readSockets, int *maxfds){
-    cout << "Sending Keepalive" << endl;
     for(auto const& server: servers){
         Server* serv = server.second;
         // Close connection if inactive for 10 mins
