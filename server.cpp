@@ -71,6 +71,7 @@ public:
     string ip;  // The ip of the connecting server
     string port; 
     time_t keepAliveTime;
+    bool listserversSent = false;
 
     Server(int socket) : sock(socket) {}
 
@@ -519,29 +520,31 @@ void serverCommand(int serverSocket, fd_set *openSockets, int *maxfds, char *buf
         if ((tokens[0].compare("LISTSERVERS") == 0) && (tokens.size() == 2))
         {
             string msg;
-
-            msg += "SERVERS," + local_group_name + "," + local_ip + "," + local_server_port + ";";
-            for (auto const &server : servers)
-            {
-                Server *s = server.second;
-                if (s->name != "" && s->ip != "" && s->port != "")
+            if(!servers[serverSocket]->listserversSent) {
+                msg += "SERVERS," + local_group_name + "," + local_ip + "," + local_server_port + ";";
+                for (auto const &server : servers)
                 {
-                    msg += server.second->name + "," + server.second->ip + "," + server.second->port + ";";
+                    Server *s = server.second;
+                    if (s->name != "" && s->ip != "" && s->port != "")
+                    {
+                        msg += server.second->name + "," + server.second->ip + "," + server.second->port + ";";
+                    }
                 }
-            }
 
-            stuffHex(msg);
- 
-            if ((send(serverSocket, msg.c_str(), msg.length(), 0)) < 0)
-            {
-                perror("FAILED TO SEND");
+                stuffHex(msg);
+    
+                if ((send(serverSocket, msg.c_str(), msg.length(), 0)) < 0)
+                {
+                    perror("FAILED TO SEND");
+                }
+                string newCommand = "LISTSERVERS," + local_group_name;
+                stuffHex(newCommand);
+                if ((send(serverSocket, newCommand.c_str(), newCommand.length(), 0)) < 0)
+                {
+                    perror("FAILED TO SEND");
+                }
+                servers[serverSocket]->listserversSent = true;
             }
-            /*string newCommand = "LISTSERVERS," + local_group_name;
-            stuffHex(newCommand);
-            if ((send(serverSocket, newCommand.c_str(), newCommand.length(), 0)) < 0)
-            {
-                perror("FAILED TO SEND");
-            }*/
         }
         else if (tokens[0].compare("SERVERS") == 0)
         {
@@ -555,7 +558,6 @@ void serverCommand(int serverSocket, fd_set *openSockets, int *maxfds, char *buf
         }
         else if ((tokens[0].compare("KEEPALIVE") == 0) && tokens.size() == 2) 
         {
-            cout << "Keep " <<  servers[serverSocket]->name << " Alive" << endl;
             servers[serverSocket]->keepAliveTime = time(0); // Resetting keepalive time
         }
         else if ((tokens[0].compare("GET_MSG") == 0) && tokens.size() == 2)
@@ -710,11 +712,20 @@ void sendKeepalive(fd_set &openSockets, fd_set &readSockets, int *maxfds){
         // Close connection if inactive for 10 mins
         if(difftime(time(0), serv->keepAliveTime) > 600)
         {
+            string msg = "LEAVE," + serv->ip + "," + serv->port;
+            stuffHex(msg);
+            if(send(serv->sock, msg.c_str(), msg.length(),0) < 0){
+                perror("Sending KEEPALIVE failed");
+            }
+
             closeServer(serv->sock, &openSockets, maxfds);
         }
         else
         {
-            string msg = "KEEPALIVE,0";
+            string msg;
+
+            msg = "KEEPALIVE," + to_string(outgoingMsg[serv->name].size());
+            cout << "KEEPALIVE MSG = " << msg << endl;
             stuffHex(msg);
             if(send(serv->sock, msg.c_str(), msg.length(),0) < 0){
                 perror("Sending KEEPALIVE failed");
