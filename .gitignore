@@ -38,4 +38,5 @@ tsamvgroup69
 *.sh
 
 # Log files
-log*.txt
+Sent*.txt
+Recived*.txt
